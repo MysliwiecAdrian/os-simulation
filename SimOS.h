@@ -11,13 +11,11 @@
 #include <iostream>
 #include <vector>
 #include <deque>
+#include <map>
+#include <stdexcept>
+#include "Process.h"
+#include "Disk.h"
 
-struct FileReadRequest
-{
-    int PID{0};
-    std::string fileName{""};
-};
- 
 struct MemoryItem
 {
     unsigned long long pageNumber;
@@ -26,38 +24,43 @@ struct MemoryItem
 };
  
 using MemoryUsage = std::vector<MemoryItem>;
-
 constexpr int NO_PROCESS{ 0 };
 
 class SimOS
-{
-    SimOS(int numberOfDisks, unsigned long long amountOfRAM, unsigned int pageSize);
+{   
+    public:
+        SimOS(int numberOfDisks, unsigned long long amountOfRAM, unsigned int pageSize);
+        void NewProcess();
+        void SimFork();
+        void SimExit();
+        void SimWait();
+        void TimerInterrupt();
+        void DiskReadRequest(int diskNumber, std::string fileName);
+        void DiskJobCompleted(int diskNumber);
+        void AccessMemoryAddress(unsigned long long address);
+        int GetCPU();
+        std::deque<int> GetReadyQueue();
+        MemoryUsage GetMemory();
+        FileReadRequest GetDisk(int diskNumber);
+        std::deque<FileReadRequest> GetDiskQueue(int diskNumber);
 
-    void NewProcess();
+        //helper functions
+        void cascadeTerminate(int PID);
 
-    void SimFork();
+        //tester functions
+        Process getProcess(int PID);
 
-    void SimExit();
+    private:
+        int numberOfDisks = 0;
+        unsigned long long numOfRAM;
+        unsigned int pageSize;
+        int runningCPU = NO_PROCESS;
+        int PID = 1;
 
-    void SimWait();
-
-    void TimerInterrupt();
-
-    void DiskReadRequest(int diskNumber, std::string fileName);
-
-    void DiskJobCompleted(int diskNumber);
-
-    void AccessMemoryAddress(unsigned long long address);
-
-    int GetCPU();
-
-    std::deque<int> GetReadyQueue();
-
-    MemoryUsage GetMemory();
-
-    FileReadRequest GetDisk(int diskNumber);
-
-    std::deque<FileReadRequest> GetDiskQueue(int diskNumber);
+        std::vector<Disk> disks;
+        MemoryUsage memory;
+        std::deque<int> readyQueue;
+        std::map<int, Process> processes;
 };
 
 #endif
