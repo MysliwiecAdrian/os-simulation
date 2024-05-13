@@ -28,6 +28,7 @@ class Process{
         int getPID();
         void addChild(int PID);
         void setState(STATE state);
+        STATE getState();
         int getParent();
 
         //tester functions

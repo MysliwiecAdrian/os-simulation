@@ -46,13 +46,14 @@ class SimOS
 
         //helper functions
         void cascadeTerminate(int PID);
-
-        //tester functions
-        Process getProcess(int PID);
+        bool addMemory(int PID);
+        void removeMemory(int PID);
+        void removeReadyQueue(int PID);
+        void removeIOQueue(int PID);
 
     private:
         int numberOfDisks = 0;
-        unsigned long long numOfRAM;
+        unsigned long long amountOfRAM;
         unsigned int pageSize;
         int runningCPU = NO_PROCESS;
         int PID = 1;

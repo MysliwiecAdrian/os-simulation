@@ -9,15 +9,22 @@
 
 SimOS::SimOS(int numberOfDisks, unsigned long long amountOfRAM, unsigned int pageSize){
     this->numberOfDisks = numberOfDisks;
+    this->amountOfRAM = amountOfRAM;
+    this->pageSize = pageSize;
+
     for (int i = 0; i < numberOfDisks; i++)
         disks.push_back(Disk());
 
-    numOfRAM = amountOfRAM;
-    this->pageSize = pageSize;
+    memory.resize(amountOfRAM / pageSize);
 }
 
 void SimOS::NewProcess(){
     Process newProcess(PID);
+
+    //add process to memory
+    if(!addMemory(PID))
+        throw std::runtime_error("Memory is full");
+
     if (runningCPU == NO_PROCESS){
         //enter ready queue
         readyQueue.push_back(newProcess.getPID());
@@ -47,6 +54,10 @@ void SimOS::SimFork(){
     //create new process
     Process newProcess(PID, runningCPU);
     processes[PID] = newProcess;
+
+    //add process to memory
+    if(!addMemory(PID))
+        throw std::runtime_error("Memory is full");
     
     //enter ready queue
     readyQueue.push_back(newProcess.getPID());
@@ -63,25 +74,38 @@ void SimOS::SimExit(){
     if (runningCPU == NO_PROCESS)
         throw std::logic_error("No process is running");
 
-    if (processes[runningCPU].getParent() == 0){ //running process is parent
-        //terminates all children
-        cascadeTerminate(runningCPU); 
-
-        //removes process from ready queue
-    
-
-        //removes process from I/O queues
+    int parent = processes[runningCPU].getParent();
+    if (parent == 0){ //running process is parent
+        removeMemory(runningCPU); //remove process from memory
+        cascadeTerminate(runningCPU); //terminates all children
+        removeReadyQueue(runningCPU); //removes process from ready queue
+        removeIOQueue(runningCPU); //removes process from I/O queues
         
-
+        //removes from OS
         processes[runningCPU].setState(TERMINATED);
-        runningCPU = NO_PROCESS;
+        processes.erase(runningCPU);
+    }
+    else if (processes[parent].getState() == WAITING){ //running process is child
+        processes[parent].setState(READY);
+        readyQueue.push_back(parent);
+        processes[runningCPU].setState(TERMINATED);
+        processes.erase(runningCPU);
+    }
+    else{ //process becomes zombie
+        removeMemory(runningCPU);
+        removeReadyQueue(runningCPU);
+        removeIOQueue(runningCPU);
+        processes[runningCPU].setState(ZOMBIE);
+    }
 
-        //moves next process in ready queue to CPU
-        if (!readyQueue.empty()){
-            runningCPU = readyQueue.front();
-            readyQueue.pop_front();
-            processes[runningCPU].setState(RUNNING);
-        }
+
+    runningCPU = NO_PROCESS;
+
+    //moves next process in ready queue to CPU
+    if (!readyQueue.empty()){
+        runningCPU = readyQueue.front();
+        readyQueue.pop_front();
+        processes[runningCPU].setState(RUNNING);
     }
         
 }
@@ -89,7 +113,33 @@ void SimOS::SimExit(){
 void SimOS::SimWait(){
     if (runningCPU == NO_PROCESS)
         throw std::logic_error("No process is running");
+    
     processes[runningCPU].setState(WAITING);
+
+    bool zombieExists = false;
+    for (int i = 0; i < processes[runningCPU].getChildren().size(); i++){
+        int child = processes[runningCPU].getChildren()[i];
+        if (processes[child].getState() == ZOMBIE){
+            zombieExists = true;
+            processes[child].setState(TERMINATED);
+            processes.erase(child);
+            break;
+        }
+    }
+
+    if(zombieExists){
+        processes[runningCPU].setState(RUNNING);
+    }
+    else{
+        readyQueue.push_back(runningCPU);
+        runningCPU = NO_PROCESS;
+    }
+
+    if (!readyQueue.empty()){
+        runningCPU = readyQueue.front();
+        readyQueue.pop_front();
+        processes[runningCPU].setState(RUNNING);
+    }
 }
 
 void SimOS::TimerInterrupt(){
@@ -106,8 +156,15 @@ void SimOS::TimerInterrupt(){
 void SimOS::DiskReadRequest(int diskNumber, std::string fileName){
     if (diskNumber < 0 || diskNumber > numberOfDisks)
         throw std::out_of_range("Invalid disk number");
-    processes[runningCPU].setState(WAITING);
     disks[diskNumber].addRequest({runningCPU, fileName});
+    processes[runningCPU].setState(WAITING);
+    runningCPU = NO_PROCESS;
+
+    if (!readyQueue.empty()){
+        runningCPU = readyQueue.front();
+        readyQueue.pop_front();
+        processes[runningCPU].setState(RUNNING);
+    }
 }
 
 void SimOS::DiskJobCompleted(int diskNumber){
@@ -167,23 +224,60 @@ std::deque<FileReadRequest> SimOS::GetDiskQueue(int diskNumber){
 
 //helper functions
 void SimOS::cascadeTerminate(int PID){
-    for (int child : processes[PID].getChildren()){
-        //removes from ready queue
-        for (int i = 0; i < readyQueue.size(); i++){
-            if (readyQueue[i] == child){
-                readyQueue.erase(readyQueue.begin() + i);
-                break;
-            }
-        }
-
-        //removes from I/O queue
-        
-        processes[child].setState(TERMINATED);
+    for (int i = 0; i < processes[PID].getChildren().size(); i++){
+        int child = processes[PID].getChildren()[i];
+        removeMemory(child);
+        removeReadyQueue(child);
         cascadeTerminate(child);
+
+        processes[child].setState(TERMINATED);
+        processes.erase(child);
     }
 }
 
-//tester functions
-Process SimOS::getProcess(int PID){
-    return processes[PID];
+bool SimOS::addMemory(int PID){
+    for (int i = 0; i < memory.size(); i++){
+        if (memory[i].PID == NO_PROCESS){
+            memory[i].PID = PID;
+            memory[i].pageNumber = 0;
+            memory[i].frameNumber = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+void SimOS::removeMemory(int PID){
+    for (int i = 0; i < memory.size(); i++){
+        if (memory[i].PID == PID){
+            memory[i].PID = NO_PROCESS;
+            return;
+        }
+    }
+}
+
+void SimOS::removeReadyQueue(int PID){
+    std::deque<int> temp;
+    while (!readyQueue.empty()){
+        int front = readyQueue.front();
+        readyQueue.pop_front();
+        if (front != PID)
+            temp.push_back(front);
+    }
+    readyQueue = temp;
+}
+
+void SimOS::removeIOQueue(int PID){
+    for (Disk &currentDisk : disks){
+        std::deque<FileReadRequest> temp;
+
+        while (!currentDisk.getDiskQueue().empty()){
+            FileReadRequest front = currentDisk.getDiskQueue().front();
+            currentDisk.getDiskQueue().pop_front();
+            if (front.PID != PID)
+                temp.push_back(front);
+        }
+
+        currentDisk.getDiskQueue() = temp;
+    }
 }

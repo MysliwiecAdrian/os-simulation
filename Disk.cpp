@@ -15,11 +15,7 @@ void Disk::addRequest(FileReadRequest request){
 }
 
 FileReadRequest Disk::getRequest(){
-    if (ioQueue.empty())
-        throw std::logic_error("No requests in the queue");
-    currentRequest = ioQueue.front();
-    ioQueue.pop_front();
-    return currentRequest;
+    return ioQueue.front();
 }
 
 std::deque<FileReadRequest> Disk::getDiskQueue(){

@@ -31,6 +31,10 @@ void Process::setState(STATE state){
         throw std::invalid_argument("Invalid state");
 }
 
+STATE Process::getState(){
+    return state;
+}
+
 int Process::getParent(){
     return parent;
 }
