@@ -1,6 +1,7 @@
 #include"SimOS.h"
 #include<deque>
 
+
 int main()
 {
 	SimOS sim{ 3, 1000, 10 };

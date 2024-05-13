@@ -30,8 +30,6 @@ class Process{
         void setState(STATE state);
         STATE getState();
         int getParent();
-
-        //tester functions
         std::vector<int> getChildren();
     
     private:

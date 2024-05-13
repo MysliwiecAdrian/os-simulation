@@ -116,6 +116,7 @@ void SimOS::SimWait(){
     
     processes[runningCPU].setState(WAITING);
 
+    //searches for zombie children
     bool zombieExists = false;
     for (int i = 0; i < processes[runningCPU].getChildren().size(); i++){
         int child = processes[runningCPU].getChildren()[i];
@@ -131,6 +132,7 @@ void SimOS::SimWait(){
         processes[runningCPU].setState(RUNNING);
     }
     else{
+        processes[runningCPU].setState(READY);
         readyQueue.push_back(runningCPU);
         runningCPU = NO_PROCESS;
     }
@@ -193,6 +195,48 @@ void SimOS::DiskJobCompleted(int diskNumber){
 }
 
 void SimOS::AccessMemoryAddress(unsigned long long address){
+    if (runningCPU == NO_PROCESS)
+        throw std::logic_error("No process is running");
+
+    unsigned long long pageNumber = address / pageSize;
+    bool pageExists = false;
+    int emptyFrame = -1;
+
+    for(int i = 0; i < memory.size(); i++){
+        //page exists in memory so LRU is increased
+        if (memory[i].PID == runningCPU && memory[i].pageNumber == pageNumber){
+            leastRecentlyUsed[memory[i].frameNumber]++;
+            pageExists = true;
+            break;
+        }
+
+        //empty frame found
+        if (memory[i].PID == NO_PROCESS && emptyFrame == -1)
+            emptyFrame = i;
+    }
+
+    //locate the least recently used frame
+    unsigned long long LRUFRAME = ULLONG_MAX;
+    for(int i = 0; i < memory.size(); i++){
+        if (leastRecentlyUsed[memory[i].frameNumber] < leastRecentlyUsed[LRUFRAME])
+            LRUFRAME = i;
+    }
+
+    if(!pageExists){
+        if (emptyFrame != -1){
+            //puts process into memory
+            memory[emptyFrame].PID = runningCPU;
+            memory[emptyFrame].pageNumber = pageNumber;
+            memory[emptyFrame].frameNumber = emptyFrame;
+            leastRecentlyUsed[emptyFrame] = 0;
+        }
+        else{
+            //replaces process with least recently used frame
+            memory[LRUFRAME].PID = runningCPU;
+            memory[LRUFRAME].pageNumber = pageNumber;
+            leastRecentlyUsed[LRUFRAME] = 0;
+        }
+    }
 
 }
 
@@ -251,7 +295,7 @@ void SimOS::removeMemory(int PID){
     for (int i = 0; i < memory.size(); i++){
         if (memory[i].PID == PID){
             memory[i].PID = NO_PROCESS;
-            return;
+            leastRecentlyUsed.erase(memory[i].frameNumber);
         }
     }
 }

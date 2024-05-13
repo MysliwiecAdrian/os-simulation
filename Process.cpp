@@ -39,7 +39,6 @@ int Process::getParent(){
     return parent;
 }
 
-//tester functions
 std::vector<int> Process::getChildren(){
     return children;
 }

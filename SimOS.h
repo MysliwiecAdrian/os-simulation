@@ -62,6 +62,7 @@ class SimOS
         MemoryUsage memory;
         std::deque<int> readyQueue;
         std::map<int, Process> processes;
+        std::map<unsigned long long, int> leastRecentlyUsed; // frame number, counter
 };
 
 #endif

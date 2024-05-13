@@ -13,6 +13,10 @@
 int main()
 {
     SimOS sim(1, 1000000, 1000);
+
+    MemoryUsage memUsage = sim.GetMemory();
+    std::cout << "Memory Usage: " << memUsage[1].PID << std::endl;;
+
     sim.NewProcess();
     sim.NewProcess();
     sim.NewProcess();
