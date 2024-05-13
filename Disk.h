@@ -26,7 +26,7 @@ class Disk{
         int completeRequest();
 
     private:
-        FileReadRequest currentRequest;
+        FileReadRequest currentRequest = {0, ""};
         std::deque<FileReadRequest> ioQueue;
     
 };

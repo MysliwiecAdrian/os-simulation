@@ -13,6 +13,7 @@
 #include <deque>
 #include <map>
 #include <stdexcept>
+#include <climits>
 #include "Process.h"
 #include "Disk.h"
 

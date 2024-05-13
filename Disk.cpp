@@ -11,11 +11,14 @@ Disk::Disk(){
 }
 
 void Disk::addRequest(FileReadRequest request){
-    ioQueue.push_back(request);
+    if(currentRequest.PID == 0)
+        currentRequest = request;
+    else
+        ioQueue.push_back(request);
 }
 
 FileReadRequest Disk::getRequest(){
-    return ioQueue.front();
+    return currentRequest;
 }
 
 std::deque<FileReadRequest> Disk::getDiskQueue(){
@@ -23,13 +26,15 @@ std::deque<FileReadRequest> Disk::getDiskQueue(){
 }
 
 int Disk::completeRequest(){
-    if (ioQueue.empty()){
-        return 0;
+    int PID = currentRequest.PID;
+
+    if (ioQueue.empty()) {
+        currentRequest = {0, ""};
     }
     else{
-        int PID = ioQueue.front().PID;
         currentRequest = ioQueue.front();
         ioQueue.pop_front();
-        return PID;
     }
+        
+    return PID;
 }
