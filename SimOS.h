@@ -45,14 +45,14 @@ class SimOS
         FileReadRequest GetDisk(int diskNumber);
         std::deque<FileReadRequest> GetDiskQueue(int diskNumber);
 
+    private:
         //helper functions
         void cascadeTerminate(int PID);
-        bool addMemory(int PID);
         void removeMemory(int PID);
         void removeReadyQueue(int PID);
         void removeIOQueue(int PID);
+        void cleanUpMemory();
 
-    private:
         int numberOfDisks = 0;
         unsigned long long amountOfRAM;
         unsigned int pageSize;
@@ -63,7 +63,6 @@ class SimOS
         MemoryUsage memory;
         std::deque<int> readyQueue;
         std::map<int, Process> processes;
-        std::map<unsigned long long, int> leastRecentlyUsed; // frame number, counter
 };
 
 #endif

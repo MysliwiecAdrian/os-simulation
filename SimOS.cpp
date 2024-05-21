@@ -26,10 +26,6 @@ SimOS::SimOS(int numberOfDisks, unsigned long long amountOfRAM, unsigned int pag
 void SimOS::NewProcess(){
     Process newProcess(PID);
 
-    //add process to memory
-    // if(!addMemory(PID))
-    //     throw std::runtime_error("Memory is full");
-
     if (runningCPU == NO_PROCESS){
         //enter ready queue
         readyQueue.push_back(newProcess.getPID());
@@ -59,10 +55,6 @@ void SimOS::SimFork(){
     //create new process
     Process newProcess(PID, runningCPU);
     processes[PID] = newProcess;
-
-    //add process to memory
-    // if(!addMemory(PID))
-    //     throw std::runtime_error("Memory is full");
     
     //enter ready queue
     readyQueue.push_back(newProcess.getPID());
@@ -80,6 +72,7 @@ void SimOS::SimExit(){
         throw std::logic_error("No process is running");
 
     int parent = processes[runningCPU].getParent();
+
     if (parent == 0){ //running process is parent
         cascadeTerminate(runningCPU); //terminates all children
         removeReadyQueue(runningCPU); //removes process from ready queue
@@ -93,6 +86,7 @@ void SimOS::SimExit(){
     else if (processes[parent].getState() == WAITING){ //running process is child
         processes[parent].setState(READY);
         readyQueue.push_back(parent);
+        
         processes[runningCPU].setState(TERMINATED);
         processes.erase(runningCPU);
     }
@@ -105,7 +99,6 @@ void SimOS::SimExit(){
 
 
     runningCPU = NO_PROCESS;
-    removeMemory(runningCPU);
 
     //moves next process in ready queue to CPU
     if (!readyQueue.empty()){
@@ -113,7 +106,9 @@ void SimOS::SimExit(){
         readyQueue.pop_front();
         processes[runningCPU].setState(RUNNING);
     }
-        
+
+    //checks if no more processes are running to clean up memory
+    cleanUpMemory(); 
 }
 
 void SimOS::SimWait(){
@@ -134,15 +129,16 @@ void SimOS::SimWait(){
         }
     }
 
-    if(zombieExists){
+    if(zombieExists){ //process continues running if zombie is found
         processes[runningCPU].setState(RUNNING);
     }
-    else{
+    else{ //process finishes waiting and enters ready queue
         processes[runningCPU].setState(READY);
         readyQueue.push_back(runningCPU);
         runningCPU = NO_PROCESS;
     }
 
+    //moves next process in ready queue to CPU
     if (!readyQueue.empty()){
         runningCPU = readyQueue.front();
         readyQueue.pop_front();
@@ -154,20 +150,28 @@ void SimOS::TimerInterrupt(){
     if (runningCPU == NO_PROCESS)
         throw std::logic_error("No process is running");
 
+    //removes process from CPU and back into ready queue
     processes[runningCPU].setState(READY);
     readyQueue.push_back(runningCPU);
+
+    //moves next process in ready queue to CPU
     runningCPU = readyQueue.front();
-    processes[runningCPU].setState(RUNNING);
     readyQueue.pop_front();
+    processes[runningCPU].setState(RUNNING);
 }
 
 void SimOS::DiskReadRequest(int diskNumber, std::string fileName){
     if (diskNumber < 0 || diskNumber > numberOfDisks)
         throw std::out_of_range("Invalid disk number");
+    if (runningCPU == NO_PROCESS)
+        throw std::logic_error("No process is running");
+    
+    //adds request and process into io queue
     disks[diskNumber].addRequest({runningCPU, fileName});
     processes[runningCPU].setState(WAITING);
     runningCPU = NO_PROCESS;
 
+    //moves next process in ready queue to CPU
     if (!readyQueue.empty()){
         runningCPU = readyQueue.front();
         readyQueue.pop_front();
@@ -181,7 +185,7 @@ void SimOS::DiskJobCompleted(int diskNumber){
 
     int completedJob = disks[diskNumber].completeRequest();
     if (completedJob == 0)
-        return;
+        throw std::logic_error("No process exists");
     if (runningCPU == NO_PROCESS){
         //enter ready queue
         readyQueue.push_back(completedJob);
@@ -210,7 +214,8 @@ void SimOS::AccessMemoryAddress(unsigned long long address){
     for(int i = 0; i < memory.size(); i++){
         //page exists in memory so LRU is increased
         if (memory[i].PID == runningCPU && memory[i].pageNumber == pageNumber){
-            leastRecentlyUsed[memory[i].frameNumber]++;
+            int count = processes[runningCPU].getLastUsed() + 1;
+            processes[runningCPU].setLastUsed(count);
             pageExists = true;
             break;
         }
@@ -222,10 +227,13 @@ void SimOS::AccessMemoryAddress(unsigned long long address){
     }
 
     //locate the least recently used frame
-    unsigned long long LRUFRAME = ULLONG_MAX;
+    int LRUFRAME = -1;
+    int LRUCOUNTER = INT_MAX;
     for(int i = 0; i < memory.size(); i++){
-        if (leastRecentlyUsed[memory[i].frameNumber] < leastRecentlyUsed[LRUFRAME])
+        if (processes[memory[i].PID].getLastUsed() < LRUCOUNTER){
+            LRUCOUNTER = processes[memory[i].PID].getLastUsed();
             LRUFRAME = i;
+        }
     }
 
     if(!pageExists){
@@ -233,17 +241,15 @@ void SimOS::AccessMemoryAddress(unsigned long long address){
             //puts process into memory
             memory[emptyFrame].PID = runningCPU;
             memory[emptyFrame].pageNumber = pageNumber;
-            memory[emptyFrame].frameNumber = emptyFrame;
-            leastRecentlyUsed[emptyFrame] = 0;
+            processes[runningCPU].setLastUsed(0);
         }
         else{
             //replaces process with least recently used frame
             memory[LRUFRAME].PID = runningCPU;
             memory[LRUFRAME].pageNumber = pageNumber;
-            leastRecentlyUsed[LRUFRAME] = 0;
+            processes[runningCPU].setLastUsed(0);
         }
     }
-
 }
 
 int SimOS::GetCPU(){
@@ -255,7 +261,13 @@ std::deque<int> SimOS::GetReadyQueue(){
 }
 
 MemoryUsage SimOS::GetMemory(){
-    return memory;
+    MemoryUsage temp;
+    for (int i = 0; i < memory.size(); i++){
+        if(memory[i].PID != NO_PROCESS)
+            temp.push_back(memory[i]);
+    }
+    
+    return temp;
 }
 
 FileReadRequest SimOS::GetDisk(int diskNumber){
@@ -285,27 +297,12 @@ void SimOS::cascadeTerminate(int PID){
     }
 }
 
-bool SimOS::addMemory(int PID){
-    for (int i = 0; i < memory.size(); i++){
-        if (memory[i].PID == NO_PROCESS){
-            memory[i].PID = PID;
-            memory[i].pageNumber = 0;
-            memory[i].frameNumber = i;
-            return true;
-        }
-    }
-    return false;
-}
-
 void SimOS::removeMemory(int PID){
     for (int i = 0; i < memory.size(); i++){
         if (memory[i].PID == PID){
             memory[i].PID = NO_PROCESS;
-            leastRecentlyUsed.erase(memory[i].frameNumber);
         }
     }
-    if(runningCPU == NO_PROCESS && readyQueue.size() == 0)
-        memory.resize(0);
 }
 
 void SimOS::removeReadyQueue(int PID){
@@ -332,4 +329,9 @@ void SimOS::removeIOQueue(int PID){
 
         currentDisk.getDiskQueue() = temp;
     }
+}
+
+void SimOS::cleanUpMemory(){
+    if(runningCPU == NO_PROCESS && readyQueue.size() == 0)
+        memory.resize(0);
 }

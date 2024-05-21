@@ -24,6 +24,10 @@ void Process::addChild(int PID){
     children.push_back(PID);
 }
 
+std::vector<int> Process::getChildren(){
+    return children;
+}
+
 void Process::setState(STATE state){
     if (state == NEW || state == READY || state == RUNNING || state == WAITING || state == TERMINATED || state == ZOMBIE)
         this->state = state;
@@ -39,6 +43,10 @@ int Process::getParent(){
     return parent;
 }
 
-std::vector<int> Process::getChildren(){
-    return children;
+void Process::setLastUsed(int count){
+    leastRecentlyUsed = count;
+}
+
+int Process::getLastUsed(){
+    return leastRecentlyUsed;
 }

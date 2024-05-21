@@ -27,15 +27,19 @@ class Process{
         Process(int PID, int parent = 0);
         int getPID();
         void addChild(int PID);
+        std::vector<int> getChildren();
         void setState(STATE state);
         STATE getState();
         int getParent();
-        std::vector<int> getChildren();
+        void setLastUsed(int count);
+        int getLastUsed();
     
     private:
-        int PID = 0;
-        STATE state;
+        int PID;
         int parent;
+        int leastRecentlyUsed = 0;
+        
+        STATE state;
         std::vector<int> children;
 };
 
