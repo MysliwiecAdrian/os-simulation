@@ -4,18 +4,6 @@ A simple operating system simulation in C++. This project simulates processes, d
 
 ---
 
-## Table of Contents
-
-- [Features](#features)  
-- [Architecture / Components](#architecture--components)  
-- [Building](#building)  
-- [Usage](#usage)  
-- [Example / Tests](#example--tests)  
-- [Contributing](#contributing)  
-- [License](#license)  
-
----
-
 ## Features
 
 - Simulates processes with lifecycle management  
